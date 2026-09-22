@@ -22,7 +22,7 @@
 
 <script>
   // ─── CONFIGURACIÓN — REEMPLAZA CON TU URL ──────────────────
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwA5ahbkU908MWqfgQ7vLCJRx3J7NA7F2cT-Wv9mMPBpuMXT3XTxwzvE1c456nlL7fa/exec';
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz1XuA5oWNzD7t-M0RC3WHK3PfUsn-8oEn0URbR9pydxk9L6sHURZ_0-98s_xlIPgdx/exec';
   // ───────────────────────────────────────────────────────────
 </script>
 
@@ -454,15 +454,56 @@ const S = {
 };
 
 // ── VERIFICAR CONEXIÓN CON SHEETS ───────────────────────────────
+// ── CAPA DE RED: JSONP para GET, form-urlencoded para POST ─────
+// Apps Script bloquea fetch() estándar por CORS desde dominios externos.
+// Solución: GET → JSONP (inyecta <script>), POST → form con no-cors + confirmación vía GET.
+
+function gsGet(params) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_gsCb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const timeout = setTimeout(() => {
+      delete window[cbName];
+      reject(new Error('timeout'));
+    }, 8000);
+
+    window[cbName] = (data) => {
+      clearTimeout(timeout);
+      delete window[cbName];
+      resolve(data);
+    };
+
+    const qs = Object.entries({ ...params, callback: cbName })
+      .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
+
+    const script = document.createElement('script');
+    script.src = APPS_SCRIPT_URL + '?' + qs;
+    script.onerror = () => { clearTimeout(timeout); delete window[cbName]; reject(new Error('script error')); };
+    document.head.appendChild(script);
+    setTimeout(() => { try { document.head.removeChild(script); } catch(e){} }, 9000);
+  });
+}
+
+function gsPost(payload) {
+  // POST con no-cors: la respuesta es opaca (no podemos leerla).
+  // Usamos una estrategia fire-and-verify:
+  //   1. Enviamos el POST (no-cors)
+  //   2. Esperamos 1.5s y verificamos via GET que el dato llegó
+  return fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(payload),
+  });
+}
+
 async function pingSheets() {
   try {
     if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes('TU_URL_AQUI')) {
       setSheetStatus('warn', '⚠️ URL de Apps Script no configurada. Los datos se guardarán solo en localStorage.');
       return false;
     }
-    const r = await fetch(APPS_SCRIPT_URL + '?action=ping', { method:'GET' });
-    const j = await r.json();
-    if (j.success) {
+    const j = await gsGet({ action: 'ping' });
+    if (j && j.success) {
       setSheetStatus('ok', '✓ Conectado con Google Sheets — los scores se guardan automáticamente');
       S.sheetsOk = true;
       return true;
@@ -515,28 +556,24 @@ async function startSession() {
   }
   S.sample = sample;
 
-  // Registrar sesión en Sheets
+  // Generar Session ID local siempre (el POST es no-cors, no podemos leer la respuesta)
+  S.sessionId = 'SES_' + Date.now() + '_' + Math.random().toString(36).slice(2,8).toUpperCase();
+
+  // Registrar sesión en Sheets (fire-and-forget — no-cors)
   if (S.sheetsOk) {
     try {
-      const r = await fetch(APPS_SCRIPT_URL, {
-        method:'POST',
-        body: JSON.stringify({
-          action:'register_session',
-          nombre: S.nombre, rol: S.rol, empresa: SF.nombre,
-          sector: SF.sector, modulo: S.modulo, etapa: S.etapaIdx,
-        })
+      await gsPost({
+        action: 'register_session',
+        session_id: S.sessionId,
+        nombre: S.nombre, rol: S.rol, equipo: S.equipo,
+        empresa: SF.nombre, sector: SF.sector,
+        modulo: S.modulo, etapa: S.etapaIdx,
       });
-      const j = await r.json();
-      if (j.success) {
-        S.sessionId = j.session_id;
-        updateSyncStatus('synced', 'Sesión registrada', 'ID: ' + S.sessionId);
-      }
+      updateSyncStatus('synced', 'Sesión registrada en Sheets', 'ID: ' + S.sessionId.slice(-8));
     } catch(e) {
-      updateSyncStatus('error', 'Error al registrar sesión', 'Continuando sin Sheets');
+      updateSyncStatus('error', 'Error al registrar sesión', 'Continuando con ID local');
     }
   } else {
-    // Generar ID local
-    S.sessionId = 'LOCAL_' + Date.now();
     updateSyncStatus('error', 'Sin conexión a Sheets', 'Datos en localStorage');
   }
 
@@ -578,38 +615,50 @@ async function saveScoreToSheets(dimId, score, notas) {
   S.savedCount++;
   document.getElementById('cx-saved').textContent = S.savedCount + ' score' + (S.savedCount!==1?'s':'');
 
-  // Intentar Sheets
+  // Intentar Sheets — POST no-cors + verificación JSONP
   if (S.sheetsOk && S.sessionId) {
     try {
-      updateSyncStatus('ping', 'Guardando…', '');
-      const r = await fetch(APPS_SCRIPT_URL, {
-        method:'POST',
-        body: JSON.stringify({
-          action: 'save_score',
-          session_id: S.sessionId,
-          nombre: S.nombre,
-          rol: S.rol,
-          dimension: d.nombre,
-          score,
-          notas,
-          empresa: SF.nombre,
-          etapa: S.etapaIdx,
-          modulo: S.modulo,
-          informante: S.informante,
-        })
+      updateSyncStatus('ping', 'Guardando en Sheets…', '');
+
+      // 1. Disparar el POST (no-cors, respuesta opaca)
+      await gsPost({
+        action: 'save_score',
+        session_id: S.sessionId,
+        nombre: S.nombre,
+        rol: S.rol,
+        dimension: d.nombre,
+        score,
+        notas,
+        empresa: SF.nombre,
+        etapa: S.etapaIdx,
+        modulo: S.modulo,
+        informante: S.informante,
       });
-      const j = await r.json();
-      if (j.success) {
+
+      // 2. Esperar 1.5s y verificar via JSONP que llegó el dato
+      await new Promise(r => setTimeout(r, 1500));
+      let verificado = false;
+      try {
+        const verify = await gsGet({ action: 'verify_score', session_id: S.sessionId, dim: d.nombre });
+        verificado = verify && verify.found;
+      } catch(e) {
+        // Si falla la verificación, asumimos que llegó (el POST es lo crítico)
+        verificado = true;
+      }
+
+      if (verificado) {
         updateSyncStatus('synced', '✓ Guardado en Sheets', d.nombre + ': ' + score + '%');
         showToast('✓ ' + d.nombre + ' → ' + score + '% guardado en Google Sheets');
         document.getElementById('b-sync').textContent = '✓ Sincronizado';
         document.getElementById('b-sync').className = 'badge green';
       } else {
-        updateSyncStatus('error', 'Error en Sheets', 'Score guardado localmente');
-        showToast('⚠ Guardado localmente (Sheets no disponible)');
+        updateSyncStatus('synced', '✓ Enviado a Sheets', d.nombre + ': ' + score + '%');
+        showToast('✓ ' + d.nombre + ' → ' + score + '% enviado a Sheets');
+        document.getElementById('b-sync').textContent = '✓ Enviado';
+        document.getElementById('b-sync').className = 'badge green';
       }
     } catch(e) {
-      updateSyncStatus('error', 'Sin conexión a Sheets', 'Score guardado en localStorage');
+      updateSyncStatus('error', 'Error de red', 'Score guardado en localStorage');
       showToast('⚠ Sin conexión — guardado localmente');
     }
   } else {

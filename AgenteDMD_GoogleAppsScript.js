@@ -107,22 +107,54 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  const action = e.parameter.action || 'ping';
+  const action   = e.parameter.action || 'ping';
+  const callback = e.parameter.callback || '';  // JSONP callback
   let result;
 
   if (action === 'ping') {
-    result = { status: 'ok', sheet: SHEET_NAME, timestamp: new Date().toISOString() };
+    result = { success: true, status: 'ok', sheet: SHEET_NAME, timestamp: new Date().toISOString() };
   } else if (action === 'get_dashboard') {
-    result = getDashboardData();
+    result = { success: true, ...getDashboardData() };
   } else if (action === 'get_all_scores') {
-    result = getAllScores();
+    result = { success: true, ...getAllScores() };
+  } else if (action === 'verify_score') {
+    result = { success: true, ...verifyScore(e.parameter.session_id, e.parameter.dim) };
   } else {
-    result = { error: 'Acción GET no reconocida' };
+    result = { success: false, error: 'Acción GET no reconocida' };
   }
 
+  const json = JSON.stringify(result);
+
+  // Si viene con callback → JSONP (resuelve CORS desde dominios externos)
+  if (callback) {
+    return ContentService
+      .createTextOutput(callback + '(' + json + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+
+  // Sin callback → JSON normal
   return ContentService
-    .createTextOutput(JSON.stringify({ success: true, ...result }))
+    .createTextOutput(json)
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── Verificar que un score llegó correctamente ────────────────
+function verifyScore(sessionId, dimName) {
+  if (!sessionId || !dimName) return { found: false };
+  const ss   = getOrCreateSheet();
+  const sc   = ss.getSheetByName('Scores');
+  const data = sc.getDataRange().getValues();
+  const headers = data[0];
+  const sidIdx  = headers.indexOf('Session_ID');
+  const dimIdx  = headers.indexOf('Dimensión');
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][sidIdx]) === String(sessionId) &&
+        String(data[i][dimIdx]).toLowerCase().includes(dimName.toLowerCase().substring(0,6))) {
+      return { found: true };
+    }
+  }
+  return { found: false };
 }
 
 // ── Registrar nueva sesión ────────────────────────────────────
