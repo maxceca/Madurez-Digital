@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agente DTD — Diagnóstico de Madurez Digital · Rizes</title>
+
+<!--
+  ═══════════════════════════════════════════════════════════════
+  AGENTE DTD — Concentración Innovación y Transformación Digital
+  Socio Formador: Rizes (rizes.com.mx)
+  Prof. Alan Cerón C. · Tecnológico de Monterrey
+
+  INTEGRACIÓN CON GOOGLE SHEETS:
+  1. Instala el Apps Script (AgenteDMD_GoogleAppsScript.js) en
+     https://script.google.com
+  2. Implementa como Web App (acceso: cualquier persona)
+  3. Reemplaza APPS_SCRIPT_URL con la URL de tu implementación
+  4. Sube este archivo a tu repositorio GitHub
+  ═══════════════════════════════════════════════════════════════
+-->
+
+<script>
+  // ─── CONFIGURACIÓN — REEMPLAZA CON TU URL ──────────────────
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwA5ahbkU908MWqfgQ7vLCJRx3J7NA7F2cT-Wv9mMPBpuMXT3XTxwzvE1c456nlL7fa/exec';
+  // ───────────────────────────────────────────────────────────
+</script>
+
+<style>
+:root {
+  --navy:  #0D1B3E; --navy-m:#162847; --navy-l:#1F3560; --navy-xl:#253A6A;
+  --teal:  #1B6CA8; --teal-l:#2980B9;
+  --gold:  #C9993A; --gold-l:#E8B84B;
+  --white: #FFFFFF; --snow:  #F8F9FC;
+  --slate: #3A4A62; --fog:   #C8D0DE; --ink:#111827;
+  --green: #1A7A4A; --red:#C0392B; --amber:#D47B00;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Calibri','Segoe UI',sans-serif;background:var(--navy);color:var(--white);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+/* ── SETUP ── */
+#setup{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;overflow-y:auto;}
+.setup-card{background:var(--navy-m);border-radius:16px;border-top:4px solid var(--gold);padding:36px 40px;max-width:700px;width:100%;}
+.setup-logo{display:flex;align-items:center;gap:14px;margin-bottom:20px;}
+.setup-logo .icon{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--teal),var(--navy-l));border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;}
+.setup-logo h1{font-size:19px;font-weight:700;color:var(--white);line-height:1.25;}
+.setup-logo p{font-size:10px;color:var(--gold);letter-spacing:.06em;margin-top:3px;}
+
+/* SF Banner */
+.sf-banner{background:var(--navy-l);border-radius:10px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:12px;border-left:4px solid var(--gold);}
+.sf-banner .sf-icon{font-size:24px;}
+.sf-banner h3{font-size:13px;font-weight:700;color:var(--gold);}
+.sf-banner p{font-size:12px;color:var(--fog);margin-top:2px;}
+
+/* Sheet status */
+.sheet-status{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:20px;padding:10px 14px;border-radius:8px;background:var(--navy-l);}
+.sheet-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.sheet-dot.ok{background:var(--green);box-shadow:0 0 6px var(--green);}
+.sheet-dot.err{background:var(--red);}
+.sheet-dot.ping{background:var(--amber);animation:blink 1s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+.roles-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px;}
+.rol-opt{background:var(--navy-l);border-radius:10px;padding:14px;border:2px solid transparent;cursor:pointer;transition:all .2s;}
+.rol-opt:hover{border-color:var(--teal-l);}
+.rol-opt.selected{border-color:var(--gold);background:var(--navy-xl);}
+.rol-opt .rol-icon{font-size:22px;margin-bottom:6px;}
+.rol-opt h4{font-size:13px;font-weight:700;color:var(--white);}
+.rol-opt p{font-size:11px;color:var(--fog);margin-top:3px;line-height:1.4;}
+
+.etapas-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:22px;}
+.etapa-opt{background:var(--navy-l);border-radius:8px;padding:10px 6px;border:2px solid transparent;cursor:pointer;transition:all .2s;text-align:center;}
+.etapa-opt:hover{border-color:var(--teal-l);}
+.etapa-opt.selected{border-color:var(--gold);background:var(--navy-xl);}
+.etapa-opt .en{font-size:20px;font-weight:700;color:var(--gold);}
+.etapa-opt .en-label{font-size:10px;color:var(--white);font-weight:600;margin-top:3px;}
+.etapa-opt .en-desc{font-size:9px;color:var(--fog);margin-top:2px;line-height:1.3;}
+
+.fields-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+.field-g label{font-size:11px;color:var(--fog);font-weight:600;letter-spacing:.03em;display:block;margin-bottom:5px;}
+.field-g input,.field-g select{width:100%;padding:10px 12px;border-radius:8px;background:var(--navy);color:var(--white);border:1px solid var(--navy-l);font-size:13.5px;font-family:inherit;outline:none;transition:border-color .2s;}
+.field-g input:focus,.field-g select:focus{border-color:var(--teal);}
+.section-label{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--gold);text-transform:uppercase;margin-bottom:10px;}
+.start-btn{width:100%;padding:15px;border-radius:10px;background:var(--gold);border:none;color:var(--navy);font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;}
+.start-btn:hover{background:var(--gold-l);}
+.start-btn:disabled{background:var(--navy-l);color:var(--slate);cursor:not-allowed;}
+
+/* ── APP ── */
+#app{display:none;flex:1;flex-direction:column;overflow:hidden;}
+header{background:var(--navy-m);border-bottom:3px solid var(--gold);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.hdr-l{display:flex;align-items:center;gap:10px;}
+.hdr-av{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--teal),var(--navy-l));border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.hdr-info h1{font-size:13px;font-weight:700;color:var(--white);}
+.hdr-info p{font-size:10px;color:var(--gold);letter-spacing:.04em;}
+.hdr-r{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+.badge{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;background:var(--navy-l);color:var(--fog);}
+.badge.gold{background:rgba(201,153,58,.2);color:var(--gold);border:1px solid var(--gold);}
+.badge.teal{background:rgba(27,108,168,.3);color:var(--teal-l);border:1px solid var(--teal);}
+.badge.green{background:rgba(26,122,74,.3);color:#4ade80;border:1px solid var(--green);}
+.badge.saved{background:rgba(26,122,74,.2);color:#4ade80;border:1px solid var(--green);animation:pulse 2s ease-out;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(26,122,74,.5);}70%{box-shadow:0 0 0 6px transparent;}100%{box-shadow:none;}}
+
+/* Grid principal */
+.main{display:grid;grid-template-columns:240px 1fr;flex:1;min-height:0;overflow:hidden;}
+aside{background:var(--navy-m);border-right:1px solid var(--navy-l);padding:14px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:16px;}
+.aside-sec h3{font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:8px;}
+
+/* SF card en sidebar */
+.sf-side{background:var(--navy-l);border-radius:8px;padding:10px;border-left:3px solid var(--gold);}
+.sf-side .sf-name{font-size:13px;font-weight:700;color:var(--gold);}
+.sf-side .sf-sector{font-size:11px;color:var(--fog);margin-top:2px;}
+.sf-side .sf-url{font-size:10px;color:var(--teal-l);margin-top:4px;}
+
+/* Dimensiones */
+.dim-item{background:var(--navy-l);border-radius:7px;padding:9px 11px;margin-bottom:5px;cursor:pointer;border-left:3px solid transparent;transition:all .2s;}
+.dim-item:hover{border-left-color:var(--teal-l);background:var(--navy-xl);}
+.dim-item.active{border-left-color:var(--gold);background:var(--navy-xl);}
+.dim-item.scored{border-left-color:var(--green);}
+.dim-item .di-header{display:flex;align-items:center;justify-content:space-between;}
+.dim-item .di-num{font-size:16px;font-weight:700;color:var(--gold);}
+.dim-item .di-score{font-size:11px;font-weight:700;}
+.dim-item .di-name{font-size:12px;font-weight:600;color:var(--white);margin-top:2px;}
+.dim-item .di-bar{height:4px;background:var(--navy);border-radius:2px;margin-top:5px;overflow:hidden;}
+.dim-item .di-fill{height:100%;background:var(--teal);border-radius:2px;transition:width .5s;}
+.dim-item.scored .di-fill{background:var(--green);}
+
+/* Índice */
+.index-box{background:var(--navy-l);border-radius:9px;padding:12px;text-align:center;}
+.index-num{font-size:38px;font-weight:700;color:var(--gold);line-height:1;}
+.index-label{font-size:11px;color:var(--fog);margin-top:3px;}
+.index-level{font-size:12px;font-weight:600;margin-top:7px;padding:3px 10px;border-radius:20px;display:inline-block;}
+
+/* Sheet sync badge */
+.sync-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--fog);padding:8px 10px;background:var(--navy-l);border-radius:7px;}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0;}
+.sync-dot.synced{background:var(--green);box-shadow:0 0 5px var(--green);}
+.sync-dot.error{background:var(--red);}
+
+/* Chat */
+.chat-area{display:flex;flex-direction:column;overflow:hidden;}
+.ctx-bar{background:var(--navy-l);border-bottom:1px solid var(--navy-xl);padding:7px 16px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;flex-shrink:0;}
+.ctx-item{font-size:11px;color:var(--fog);}
+.ctx-item span{color:var(--white);font-weight:600;}
+.messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:13px;}
+
+.msg{display:flex;gap:10px;max-width:820px;}
+.msg.user{flex-direction:row-reverse;align-self:flex-end;}
+.msg.agent{align-self:flex-start;}
+.msg-av{width:33px;height:33px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.msg.agent .msg-av{background:linear-gradient(135deg,var(--teal),var(--navy-l));border:2px solid var(--gold);}
+.msg.user  .msg-av{background:var(--navy-l);border:2px solid var(--navy-xl);}
+.msg-b{padding:11px 15px;border-radius:12px;font-size:13.5px;line-height:1.65;max-width:660px;}
+.msg.agent .msg-b{background:var(--navy-m);border:1px solid var(--navy-l);border-top-left-radius:4px;color:var(--snow);}
+.msg.user  .msg-b{background:var(--teal);color:var(--white);border-top-right-radius:4px;}
+.msg-b strong{color:var(--gold-l);}
+
+/* Toast de guardado */
+.toast{position:fixed;bottom:80px;right:20px;background:var(--green);color:var(--white);padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;display:flex;align-items:center;gap:8px;}
+.toast.show{opacity:1;}
+
+/* Score selector */
+.score-card{background:var(--navy-l);border-radius:10px;padding:13px 15px;margin-top:9px;border-left:4px solid var(--teal);}
+.score-card h4{font-size:12px;color:var(--teal-l);font-weight:700;margin-bottom:8px;}
+.score-btns{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0;}
+.score-btn{width:44px;height:44px;border-radius:50%;border:2px solid var(--navy-xl);background:var(--navy);color:var(--fog);font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;font-family:inherit;}
+.score-btn:hover{border-color:var(--teal);color:var(--white);background:var(--teal);}
+.score-btn.selected{background:var(--gold);border-color:var(--gold);color:var(--navy);}
+.score-note{width:100%;padding:8px 10px;border-radius:7px;background:var(--navy);border:1px solid var(--navy-xl);color:var(--white);font-size:12px;font-family:inherit;margin-top:6px;resize:vertical;min-height:55px;}
+.score-save-btn{width:100%;padding:9px;border-radius:8px;background:var(--teal);border:none;color:var(--white);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.score-save-btn:hover{background:var(--gold);color:var(--navy);}
+.score-save-btn:disabled{background:var(--navy-l);color:var(--slate);cursor:not-allowed;}
+
+/* Chips */
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;}
+.chip{padding:6px 13px;border-radius:20px;border:1px solid var(--teal);color:var(--teal-l);background:transparent;font-size:12px;cursor:pointer;transition:all .2s;font-family:inherit;}
+.chip:hover{background:var(--teal);color:var(--white);}
+.chip.g{border-color:var(--gold);color:var(--gold);}
+.chip.g:hover{background:var(--gold);color:var(--navy);}
+
+/* Typing */
+.typing{display:flex;gap:4px;align-items:center;padding:11px 14px;background:var(--navy-m);border:1px solid var(--navy-l);border-radius:12px;border-top-left-radius:4px;width:fit-content;}
+.typing span{width:7px;height:7px;border-radius:50%;background:var(--gold);animation:bounce 1.2s infinite;}
+.typing span:nth-child(2){animation-delay:.2s;}
+.typing span:nth-child(3){animation-delay:.4s;}
+@keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.5;}30%{transform:translateY(-5px);opacity:1;}}
+
+/* Input */
+.input-area{background:var(--navy-m);border-top:1px solid var(--navy-l);padding:12px 16px;flex-shrink:0;}
+.input-row{display:flex;gap:9px;align-items:flex-end;}
+textarea{flex:1;padding:10px 12px;border-radius:9px;background:var(--navy);border:1px solid var(--navy-l);color:var(--white);font-size:13.5px;font-family:inherit;resize:none;min-height:44px;max-height:120px;line-height:1.5;outline:none;transition:border-color .2s;}
+textarea:focus{border-color:var(--teal);}
+textarea::placeholder{color:var(--slate);}
+.send-btn{width:44px;height:44px;border-radius:50%;background:var(--teal);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;}
+.send-btn:hover{background:var(--gold);}
+.send-btn:disabled{background:var(--navy-l);cursor:not-allowed;}
+.send-btn svg{width:18px;height:18px;fill:var(--white);}
+.input-hint{font-size:10px;color:var(--slate);margin-top:6px;text-align:center;}
+
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-thumb{background:var(--navy-l);border-radius:3px;}
+@media(max-width:640px){.main{grid-template-columns:1fr;}aside{display:none;}.roles-grid{grid-template-columns:1fr 1fr;}.etapas-grid{grid-template-columns:repeat(3,1fr);}.fields-row{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<!-- ── SETUP ─────────────────────────────────────────────────── -->
+<div id="setup">
+<div class="setup-card">
+
+  <div class="setup-logo">
+    <div class="icon">🎯</div>
+    <div>
+      <h1>Agente Consultor — Diagnóstico de Madurez Digital</h1>
+      <p>CONCENTRACIÓN ITD · MÓDULO 4 · PROF. ALAN CERÓN C. · TEC DE MONTERREY</p>
+    </div>
+  </div>
+
+  <!-- Banner SF -->
+  <div class="sf-banner">
+    <div class="sf-icon">🏢</div>
+    <div>
+      <h3>Socio Formador: Rizes</h3>
+      <p>Empresa mexicana · 28 años · Eventos corporativos B2B · Sector MICE · CDMX</p>
+    </div>
+  </div>
+
+  <!-- Estado de conexión con Sheets -->
+  <div class="sheet-status" id="sheet-status">
+    <div class="sheet-dot ping" id="sheet-dot"></div>
+    <span id="sheet-msg">Verificando conexión con Google Sheets...</span>
+  </div>
+
+  <p class="section-label">1. Tu rol en el equipo</p>
+  <div class="roles-grid">
+    <div class="rol-opt" onclick="selectRol('Codificador')">
+      <div class="rol-icon">⚙️</div><h4>Codificador</h4>
+      <p>Datos, cálculo del Índice EGADE, flujogramas y herramientas digitales</p>
+    </div>
+    <div class="rol-opt" onclick="selectRol('Tester')">
+      <div class="rol-icon">🔍</div><h4>Tester</h4>
+      <p>Valida evidencias, coherencia entre respuestas y triangulación</p>
+    </div>
+    <div class="rol-opt" onclick="selectRol('Documentador')">
+      <div class="rol-icon">📝</div><h4>Documentador</h4>
+      <p>Redacta hallazgos, causa raíz, Blueprint y reporte ejecutivo</p>
+    </div>
+    <div class="rol-opt" onclick="selectRol('Pitch/Multimedia')">
+      <div class="rol-icon">🎤</div><h4>Pitch / Multimedia</h4>
+      <p>Prepara la presentación ejecutiva para el SF</p>
+    </div>
+  </div>
+
+  <p class="section-label">2. Etapa del Reto en la que trabajan hoy</p>
+  <div class="etapas-grid">
+    <div class="etapa-opt" onclick="selectEtapa(0)">
+      <div class="en">0</div><div class="en-label">Explorar</div>
+      <div class="en-desc">Oportunidades digitales en Rizes</div>
+    </div>
+    <div class="etapa-opt" onclick="selectEtapa(1)">
+      <div class="en">1</div><div class="en-label">Diagnóstico</div>
+      <div class="en-desc">Instrumento EGADE a Rizes</div>
+    </div>
+    <div class="etapa-opt" onclick="selectEtapa(2)">
+      <div class="en">2</div><div class="en-label">Problema</div>
+      <div class="en-desc">Definir la problemática</div>
+    </div>
+    <div class="etapa-opt" onclick="selectEtapa(3)">
+      <div class="en">3</div><div class="en-label">Estrategias</div>
+      <div class="en-desc">Portafolio de propuestas</div>
+    </div>
+    <div class="etapa-opt" onclick="selectEtapa(4)">
+      <div class="en">4</div><div class="en-label">Plan TD</div>
+      <div class="en-desc">Roadmap final para Rizes</div>
+    </div>
+  </div>
+
+  <p class="section-label">3. Datos de sesión</p>
+  <div class="fields-row">
+    <div class="field-g">
+      <label>Tu nombre</label>
+      <input id="f-nombre" type="text" placeholder="Ej. Sofía M."/>
+    </div>
+    <div class="field-g">
+      <label>Equipo #</label>
+      <input id="f-equipo" type="text" placeholder="Ej. Equipo 3"/>
+    </div>
+    <div class="field-g">
+      <label>Módulo actual</label>
+      <select id="f-modulo">
+        <option value="4" selected>Módulo 4 — Diagnóstico de Madurez Digital ★</option>
+        <option value="1">Módulo 1 — Estrategia y Ecosistema</option>
+        <option value="2">Módulo 2 — Innovación y Consumidor Digital</option>
+        <option value="3">Módulo 3 — TD como Paradigma de Negocio</option>
+        <option value="5">Módulo 5 — Tecnologías Disruptivas</option>
+        <option value="6">Módulo 6 — Liderazgo y Cultura</option>
+      </select>
+    </div>
+    <div class="field-g">
+      <label>Informante del SF entrevistado hoy</label>
+      <input id="f-informante" type="text" placeholder="Ej. Director de Operaciones"/>
+    </div>
+  </div>
+
+  <button class="start-btn" id="start-btn" onclick="startSession()">
+    Iniciar sesión con el Agente →
+  </button>
+
+</div>
+</div>
+
+<!-- ── APP ───────────────────────────────────────────────────── -->
+<div id="app">
+  <header>
+    <div class="hdr-l">
+      <div class="hdr-av">🤖</div>
+      <div class="hdr-info">
+        <h1>Agente DTD — Diagnóstico de Madurez Digital · Rizes</h1>
+        <p>CONCENTRACIÓN ITD · MÓDULO 4 · PROF. ALAN CERÓN C. · TEC DE MONTERREY</p>
+      </div>
+    </div>
+    <div class="hdr-r">
+      <div class="badge gold" id="b-rol">—</div>
+      <div class="badge teal" id="b-etapa">Etapa —</div>
+      <div class="badge" id="b-sync">⏳ Sin guardar</div>
+    </div>
+  </header>
+
+  <div class="main">
+    <aside>
+      <!-- SF info -->
+      <div class="aside-sec">
+        <h3>Socio Formador</h3>
+        <div class="sf-side">
+          <div class="sf-name">Rizes</div>
+          <div class="sf-sector">Eventos corporativos · MICE · 28 años</div>
+          <div class="sf-url">rizes.com.mx · CDMX</div>
+        </div>
+      </div>
+
+      <!-- Sesión -->
+      <div class="aside-sec">
+        <h3>Mi sesión</h3>
+        <div class="sf-side">
+          <div style="font-size:13px;font-weight:600;color:var(--white);" id="side-nombre">—</div>
+          <div style="font-size:12px;color:var(--gold);margin-top:3px;" id="side-rol">—</div>
+          <div style="font-size:11px;color:var(--fog);margin-top:4px;" id="side-equipo">—</div>
+        </div>
+      </div>
+
+      <!-- Dimensiones (solo etapa 1) -->
+      <div class="aside-sec" id="dims-sec" style="display:none;">
+        <h3>Dimensiones EGADE</h3>
+        <div id="dims-nav"></div>
+      </div>
+
+      <!-- Índice -->
+      <div class="aside-sec" id="idx-sec" style="display:none;">
+        <h3>Índice de Madurez</h3>
+        <div class="index-box">
+          <div class="index-num" id="idx-num">—</div>
+          <div class="index-label">Índice Compuesto</div>
+          <div class="index-level" id="idx-level" style="background:var(--navy-l);color:var(--fog);">Sin datos</div>
+        </div>
+      </div>
+
+      <!-- Sync status -->
+      <div class="aside-sec">
+        <h3>Sincronización</h3>
+        <div class="sync-status">
+          <div class="sync-dot" id="sync-dot"></div>
+          <span id="sync-text">Conectando...</span>
+        </div>
+        <div style="font-size:10px;color:var(--slate);margin-top:6px;" id="sync-detail"></div>
+      </div>
+    </aside>
+
+    <div class="chat-area">
+      <div class="ctx-bar">
+        <div class="ctx-item">Estudiante: <span id="cx-nombre">—</span></div>
+        <div class="ctx-item">Etapa: <span id="cx-etapa">—</span></div>
+        <div class="ctx-item">Guardado: <span id="cx-saved">0 scores</span></div>
+      </div>
+      <div class="messages" id="messages"></div>
+      <div class="input-area">
+        <div class="input-row">
+          <textarea id="user-input" placeholder="Escribe tu respuesta aquí..." rows="1"
+            onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="send-btn" id="send-btn" onclick="sendMessage()">
+            <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+          </button>
+        </div>
+        <div class="input-hint">Enter para enviar · Shift+Enter para nueva línea</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">✓ <span id="toast-msg">Guardado en Google Sheets</span></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// DATOS DEL CURSO
+// ═══════════════════════════════════════════════════════════════
+const SF = {
+  nombre: 'Rizes',
+  url: 'rizes.com.mx',
+  sector: 'Eventos corporativos y turismo de reuniones (MICE)',
+  ubicacion: 'Coyoacán, CDMX',
+  años: 28,
+  clientes: 'Novo Nordisk, Bayer, Synthon, Grupo Menarini, Lotería Nacional, Facultad de Medicina',
+  contexto: 'Empresa 100% mexicana. Servicios: eventos presenciales/virtuales/híbridos, viajes de incentivo, producción creativa, congresos y convenciones. Cartera concentrada en sector farmacéutico. Sin portal digital de autoservicio visible. Blog abandonado desde 2022.',
+  hipotesis_madurez: 'Estimado 2.2/5 — Nivel Emergente',
+};
+
+const ETAPAS = [
+  { num:0, nombre:'Explorar e Identificar Oportunidades', build:'Bridge', entregable:'Mapa de oportunidades digitales de Rizes',
+    acciones:{ 'Codificador':'Mapea las herramientas digitales que usa Rizes y sus procesos de negocio core.', 'Tester':'Verifica que las oportunidades identificadas tengan evidencia observable del SF.', 'Documentador':'Redacta el contexto de Rizes: industria MICE, tamaño, áreas de operación y primer diagnóstico cualitativo.', 'Pitch/Multimedia':'Diseña una primera diapositiva que capture el "dolor digital" de Rizes en una sola frase.' }},
+  { num:1, nombre:'Diagnóstico de Madurez Digital', build:'Uncover', entregable:'Índice EGADE + gráfico radar + hallazgos documentados',
+    acciones:{ 'Codificador':'Captura respuestas del instrumento EGADE, calcula score por dimensión y el Índice Compuesto Global.', 'Tester':'Triangula respuestas con al menos 3 informantes de Rizes. Identifica contradicciones o sesgos.', 'Documentador':'Redacta los 3 hallazgos críticos: Hallazgo → Causa raíz → Impacto en el negocio de Rizes.', 'Pitch/Multimedia':'Prepara el radar de madurez visual y diapositivas de hallazgos para la presentación.' }},
+  { num:2, nombre:'Definir la Problemática', build:'Uncover', entregable:'Flujogramas de 3 procesos críticos + declaración del problema',
+    acciones:{ 'Codificador':'Diagrama los 3 procesos neurálgicos de Rizes con cuellos de botella y puntos de mejora.', 'Tester':'Valida que los cuellos de botella correspondan con los hallazgos del diagnóstico EGADE.', 'Documentador':'Escribe la declaración de problemática en formato "How Might We" y la narrativa ejecutiva.', 'Pitch/Multimedia':'Visualiza el problema con storytelling: situación actual → impacto → oportunidad.' }},
+  { num:3, nombre:'Portafolio de Estrategias', build:'Iterate', entregable:'3 propuestas digitales evaluadas + iniciativa piloto',
+    acciones:{ 'Codificador':'Evalúa cada propuesta con la matriz Impacto-Esfuerzo e incluye análisis de tecnologías para Rizes.', 'Tester':'Verifica que las tecnologías propuestas sean factibles para el tamaño y contexto de Rizes.', 'Documentador':'Redacta el Blueprint de la iniciativa seleccionada (3 páginas, estructura PEP).', 'Pitch/Multimedia':'Produce el video-briefing ejecutivo (máx 5 min) con Synthesia o HeyGen.' }},
+  { num:4, nombre:'Plan de Transformación Digital', build:'Leverage+Disseminate', entregable:'Strategic Roadmap + presentación ejecutiva al SF',
+    acciones:{ 'Codificador':'Construye el roadmap en 3 horizontes (0-6, 6-18, 18-36 meses) con KPIs y recursos para Rizes.', 'Tester':'Verifica que cada iniciativa del roadmap esté respaldada en evidencia del diagnóstico.', 'Documentador':'Redacta el Executive Summary (máx 3 páginas, estructura PEP) para Rizes.', 'Pitch/Multimedia':'Prepara la presentación final de 15 min para la dirección de Rizes.' }},
+];
+
+const DIMS = [
+  {id:'estrategia',   n:1, nombre:'Estrategia',       desc:'Visión digital alineada al modelo de negocio'},
+  {id:'liderazgo',    n:2, nombre:'Liderazgo',         desc:'Compromiso de alta dirección con la TD'},
+  {id:'cultura',      n:3, nombre:'Cultura Digital',   desc:'Apertura al cambio, tolerancia al error, agilidad'},
+  {id:'personas',     n:4, nombre:'Personas y Org.',   desc:'Talento digital, estructuras ágiles, upskilling'},
+  {id:'innovacion',   n:5, nombre:'Innovación',        desc:'Capacidad de generar y escalar nuevas ideas'},
+  {id:'competencias', n:6, nombre:'Competencias Org.', desc:'Capacidades dinámicas y analítica de datos'},
+  {id:'resiliencia',  n:7, nombre:'Resiliencia',       desc:'Ciberseguridad, continuidad y gestión de crisis'},
+  {id:'aceleradores', n:8, nombre:'Aceleradores',      desc:'Adopción de nube, IA, IoT y Blockchain'},
+];
+
+const NIVELES = [
+  {min:0,  max:19,  n:'Nivel 1 — Inicial',    c:'#C0392B'},
+  {min:20, max:39,  n:'Nivel 2 — Emergente',  c:'#D47B00'},
+  {min:40, max:59,  n:'Nivel 3 — Definido',   c:'#2980B9'},
+  {min:60, max:79,  n:'Nivel 4 — Gestionado', c:'#1B6CA8'},
+  {min:80, max:100, n:'Nivel 5 — Optimizado', c:'#1A7A4A'},
+];
+function getNivel(s){return NIVELES.find(n=>s>=n.min&&s<=n.max)||NIVELES[0];}
+
+// ── ESTADO ──────────────────────────────────────────────────────
+const S = {
+  nombre:'', rol:'', equipo:'', modulo:4, etapaIdx:1, informante:'',
+  sessionId:null, dimActual:null, scores:{}, historial:[], sample:null,
+  sheetsOk:false, savedCount:0,
+};
+
+// ── VERIFICAR CONEXIÓN CON SHEETS ───────────────────────────────
+async function pingSheets() {
+  try {
+    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes('TU_URL_AQUI')) {
+      setSheetStatus('warn', '⚠️ URL de Apps Script no configurada. Los datos se guardarán solo en localStorage.');
+      return false;
+    }
+    const r = await fetch(APPS_SCRIPT_URL + '?action=ping', { method:'GET' });
+    const j = await r.json();
+    if (j.success) {
+      setSheetStatus('ok', '✓ Conectado con Google Sheets — los scores se guardan automáticamente');
+      S.sheetsOk = true;
+      return true;
+    }
+  } catch(e) {
+    setSheetStatus('err', '✗ Sin conexión con Sheets. Datos guardados localmente (sin pérdida).');
+  }
+  return false;
+}
+
+function setSheetStatus(type, msg) {
+  const dot = document.getElementById('sheet-dot');
+  const txt = document.getElementById('sheet-msg');
+  dot.className = 'sheet-dot ' + (type==='ok'?'ok':type==='warn'?'ping':'err');
+  txt.textContent = msg;
+}
+
+// Ping al cargar
+window.addEventListener('DOMContentLoaded', () => pingSheets());
+
+// ── SETUP: selección de rol y etapa ─────────────────────────────
+function selectRol(r) {
+  S.rol = r;
+  document.querySelectorAll('.rol-opt').forEach(el => {
+    el.classList.toggle('selected', el.querySelector('h4').textContent.trim() === r);
+  });
+}
+function selectEtapa(i) {
+  S.etapaIdx = i;
+  document.querySelectorAll('.etapa-opt').forEach((el,idx) => el.classList.toggle('selected', idx===i));
+}
+
+// ── INICIO DE SESIÓN ─────────────────────────────────────────────
+async function startSession() {
+  S.nombre    = document.getElementById('f-nombre').value.trim() || 'Estudiante';
+  S.equipo    = document.getElementById('f-equipo').value.trim() || 'Equipo';
+  S.modulo    = parseInt(document.getElementById('f-modulo').value) || 4;
+  S.informante= document.getElementById('f-informante').value.trim() || '';
+  if (!S.rol)  { alert('Selecciona tu rol en el equipo.'); return; }
+
+  const btn = document.getElementById('start-btn');
+  btn.disabled = true; btn.textContent = 'Conectando con Claude y Sheets…';
+
+  // Inicializar Claude
+  const sample = await claude.use('sample');
+  if (!sample) {
+    btn.disabled = false; btn.textContent = 'Iniciar sesión →';
+    alert('El agente requiere que abras este archivo en claude.ai para funcionar.');
+    return;
+  }
+  S.sample = sample;
+
+  // Registrar sesión en Sheets
+  if (S.sheetsOk) {
+    try {
+      const r = await fetch(APPS_SCRIPT_URL, {
+        method:'POST',
+        body: JSON.stringify({
+          action:'register_session',
+          nombre: S.nombre, rol: S.rol, empresa: SF.nombre,
+          sector: SF.sector, modulo: S.modulo, etapa: S.etapaIdx,
+        })
+      });
+      const j = await r.json();
+      if (j.success) {
+        S.sessionId = j.session_id;
+        updateSyncStatus('synced', 'Sesión registrada', 'ID: ' + S.sessionId);
+      }
+    } catch(e) {
+      updateSyncStatus('error', 'Error al registrar sesión', 'Continuando sin Sheets');
+    }
+  } else {
+    // Generar ID local
+    S.sessionId = 'LOCAL_' + Date.now();
+    updateSyncStatus('error', 'Sin conexión a Sheets', 'Datos en localStorage');
+  }
+
+  // Restaurar scores de localStorage si existen
+  const saved = localStorage.getItem('dtd_scores_' + S.sessionId);
+  if (saved) { try { S.scores = JSON.parse(saved); } catch(e) {} }
+
+  // Mostrar app
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('app').style.flexDirection = 'column';
+
+  // Llenar UI
+  document.getElementById('b-rol').textContent      = S.rol;
+  document.getElementById('b-etapa').textContent    = 'Etapa ' + S.etapaIdx;
+  document.getElementById('side-nombre').textContent = S.nombre;
+  document.getElementById('side-rol').textContent   = S.rol;
+  document.getElementById('side-equipo').textContent = S.equipo;
+  document.getElementById('cx-nombre').textContent  = S.nombre;
+  document.getElementById('cx-etapa').textContent   = 'Etapa ' + S.etapaIdx;
+
+  if (S.etapaIdx === 1) {
+    document.getElementById('dims-sec').style.display = '';
+    document.getElementById('idx-sec').style.display  = '';
+  }
+
+  renderDims();
+  updateGlobalIndex();
+  agentReply(null, true);
+}
+
+// ── GUARDAR SCORE EN SHEETS + localStorage ───────────────────────
+async function saveScoreToSheets(dimId, score, notas) {
+  const d = DIMS.find(x=>x.id===dimId);
+
+  // Siempre guardar en localStorage como respaldo
+  S.scores[dimId] = { score, notas };
+  localStorage.setItem('dtd_scores_' + S.sessionId, JSON.stringify(S.scores));
+  S.savedCount++;
+  document.getElementById('cx-saved').textContent = S.savedCount + ' score' + (S.savedCount!==1?'s':'');
+
+  // Intentar Sheets
+  if (S.sheetsOk && S.sessionId) {
+    try {
+      updateSyncStatus('ping', 'Guardando…', '');
+      const r = await fetch(APPS_SCRIPT_URL, {
+        method:'POST',
+        body: JSON.stringify({
+          action: 'save_score',
+          session_id: S.sessionId,
+          nombre: S.nombre,
+          rol: S.rol,
+          dimension: d.nombre,
+          score,
+          notas,
+          empresa: SF.nombre,
+          etapa: S.etapaIdx,
+          modulo: S.modulo,
+          informante: S.informante,
+        })
+      });
+      const j = await r.json();
+      if (j.success) {
+        updateSyncStatus('synced', '✓ Guardado en Sheets', d.nombre + ': ' + score + '%');
+        showToast('✓ ' + d.nombre + ' → ' + score + '% guardado en Google Sheets');
+        document.getElementById('b-sync').textContent = '✓ Sincronizado';
+        document.getElementById('b-sync').className = 'badge green';
+      } else {
+        updateSyncStatus('error', 'Error en Sheets', 'Score guardado localmente');
+        showToast('⚠ Guardado localmente (Sheets no disponible)');
+      }
+    } catch(e) {
+      updateSyncStatus('error', 'Sin conexión a Sheets', 'Score guardado en localStorage');
+      showToast('⚠ Sin conexión — guardado localmente');
+    }
+  } else {
+    updateSyncStatus('warn', 'Solo localStorage', 'Configura la URL de Apps Script');
+    showToast('💾 Guardado localmente');
+  }
+
+  renderDims();
+  updateGlobalIndex();
+}
+
+function updateSyncStatus(type, text, detail) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  const det = document.getElementById('sync-detail');
+  dot.className = 'sync-dot' + (type==='synced'?' synced':type==='error'?' error':type==='ping'?' '+'':' ');
+  if (type==='ping') dot.style.background=C_AMBER;
+  txt.textContent = text;
+  if (det) det.textContent = detail;
+}
+const C_AMBER = '#D47B00';
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 3500);
+}
+
+// ── RENDERIZADO SIDEBAR ──────────────────────────────────────────
+function renderDims() {
+  const nav = document.getElementById('dims-nav');
+  if (!nav) return;
+  nav.innerHTML = DIMS.map(d => {
+    const sc = S.scores[d.id];
+    const pct = sc ? sc.score : 0;
+    const nv = sc ? getNivel(pct) : null;
+    return `<div class="dim-item ${S.dimActual===d.id?'active':''} ${sc?'scored':''}" onclick="askDim('${d.id}')">
+      <div class="di-header">
+        <div class="di-num">${d.n}</div>
+        ${sc ? `<div class="di-score" style="color:${nv.c}">${pct}%</div>` : ''}
+      </div>
+      <div class="di-name">${d.nombre}</div>
+      <div class="di-bar"><div class="di-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function updateGlobalIndex() {
+  const vals = Object.values(S.scores).map(s=>s.score).filter(v=>v!==null);
+  if (!vals.length) return;
+  const avg = Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+  const nv  = getNivel(avg);
+  document.getElementById('idx-num').textContent   = avg + '%';
+  document.getElementById('idx-level').textContent = nv.n;
+  document.getElementById('idx-level').style.background = nv.c + '22';
+  document.getElementById('idx-level').style.color = nv.c;
+}
+
+function askDim(dimId) {
+  S.dimActual = dimId;
+  renderDims();
+  const d = DIMS.find(x=>x.id===dimId);
+  const msg = `Quiero evaluar la dimensión ${d.n}: ${d.nombre} de Rizes`;
+  addUserBubble(msg);
+  S.historial.push({role:'user',content:msg});
+  agentReply();
+}
+
+// ── SYSTEM PROMPT ────────────────────────────────────────────────
+function buildPrompt() {
+  const etapa   = ETAPAS[S.etapaIdx];
+  const accion  = etapa.acciones[S.rol] || 'Apoya al equipo según tu criterio.';
+  const dimAct  = S.dimActual ? DIMS.find(d=>d.id===S.dimActual) : null;
+  const scoredStr = Object.entries(S.scores).map(([id,v])=>{
+    const d=DIMS.find(x=>x.id===id);
+    return `${d.nombre}: ${v.score}% (${getNivel(v.score).n})`;
+  }).join(', ') || 'Ninguna evaluada aún';
+
+  return `Eres el Agente Consultor del Módulo 4 "Diagnóstico de Madurez Digital" de la Concentración en Innovación y Transformación Digital del Tecnológico de Monterrey, diseñada por el Prof. Alan Cerón C.
+
+SOCIO FORMADOR DE ESTE SEMESTRE:
+- Nombre: Rizes (rizes.com.mx)
+- Sector: Eventos corporativos y turismo de reuniones (MICE — Meetings, Incentives, Congresses & Exhibitions)
+- Ubicación: Coyoacán, Ciudad de México
+- Antigüedad: 28 años de operación
+- Clientes representativos: Novo Nordisk, Bayer, Synthon, Grupo Menarini, Lotería Nacional, Facultad de Medicina
+- Servicios: eventos presenciales/virtuales/híbridos, viajes de incentivo, producción creativa, congresos y convenciones
+- Señales digitales observadas: sitio web básico sin autoservicio, blog abandonado desde 2022, sin portal de clientes, cartera concentrada en sector farmacéutico
+- Hipótesis de madurez inicial: ~2.2/5 — Nivel Emergente (a confirmar con el instrumento EGADE)
+
+CONTEXTO DEL SECTOR MICE MÉXICO 2024-2025:
+- Sector MICE = 1.83% del PIB mexicano al cierre de 2024
+- Industria global MICE proyectada: de $598B (2022) a $2.3T (2032)
+- Tendencia dominante en México: 80% de eventos en formato híbrido
+- IA generativa en eventos: uso duplicado en 2024 (del 16% al 34% de organizadores)
+- Amenaza: plataformas como Cvent, Bizzabo y Hopin permiten que empresas organicen eventos sin agencia
+
+SESIÓN ACTUAL:
+- Estudiante: ${S.nombre} (${S.equipo})
+- Rol en el equipo: ${S.rol}
+- Módulo: ${S.modulo} de 6
+- Etapa del Reto: ${S.etapaIdx} — "${etapa.nombre}"
+- Metodología BUILD aplicada: ${etapa.build}
+- Entregable de esta etapa: ${etapa.entregable}
+- Acción específica para ${S.rol}: ${accion}
+- Informante de Rizes entrevistado hoy: ${S.informante || 'No especificado'}
+${S.etapaIdx===1?`- Dimensión EGADE activa: ${dimAct?dimAct.nombre+' — '+dimAct.desc:'Ninguna seleccionada aún'}
+- Dimensiones evaluadas: ${scoredStr}`:''}
+
+INSTRUMENTO EGADE — 8 DIMENSIONES (solo para Etapa 1):
+Aplica escala Likert 1-5 (1=inexistente, 5=completamente optimizado):
+1. Estrategia: ¿Tiene Rizes una visión digital alineada a su modelo de negocio?
+2. Liderazgo: ¿La dirección de Rizes lidera activamente la transformación digital?
+3. Cultura Digital: ¿Rizes tiene apertura al cambio, tolerancia al error y mentalidad ágil?
+4. Personas y Org.: ¿Tiene talento digital especializado y estructuras ágiles?
+5. Innovación: ¿Genera y escala nuevas ideas de forma sistemática o solo por accidente?
+6. Competencias Org.: ¿Usa datos para tomar decisiones? ¿Tiene capacidades dinámicas?
+7. Resiliencia: ¿Tiene plan de ciberseguridad y continuidad de negocio digital?
+8. Aceleradores: ¿Ha adoptado nube, IA, IoT u otras tecnologías disruptivas?
+
+CONTEXTO ESPECÍFICO DE RIZES PARA EL DIAGNÓSTICO:
+- Proceso comercial hipotéticamente manual (sin CRM visible, sin cotizador online)
+- Proceso de producción posiblemente coordinado con WhatsApp/email/Excel
+- Sin evidencia de sistema de medición post-evento ni NPS digital
+- Cartera concentrada en farma = ciclos predecibles pero alta exposición a reducción de eventos presenciales
+- Oportunidades clave: portal de autoservicio para clientes frecuentes, IA para propuestas, analítica de impacto de eventos
+
+REGLAS DE COMPORTAMIENTO:
+1. Adapta SIEMPRE al ROL del estudiante: Codificador→instrucciones técnicas/datos; Tester→criterios de validación; Documentador→estructura de escritura ejecutiva; Pitch→narrativa y comunicación.
+2. Contextualiza SIEMPRE con Rizes específicamente, no con generalidades del sector.
+3. No resuelvas el trabajo del estudiante. Haz preguntas que los lleven a la respuesta.
+4. Exige evidencia antes de aceptar un score: "¿Qué te dijo el directivo de Rizes que justifica ese número?"
+5. Cuando el estudiante quiera calificar una dimensión EGADE, valida primero que la evidencia sea específica de Rizes, no una suposición.
+6. Menciona explícitamente que los scores se guardan en Google Sheets para que el profesor los vea.
+7. Máximo 150 palabras por respuesta. Cierra con UNA pregunta o instrucción concreta.
+8. Sin frases de IA: nada de "por supuesto", "claro que sí", "excelente pregunta".`;
+}
+
+// ── AGENTE REPLY ─────────────────────────────────────────────────
+async function agentReply(extra=null, isWelcome=false) {
+  const el   = document.getElementById('messages');
+  const sBtn = document.getElementById('send-btn');
+  sBtn.disabled = true;
+
+  const typDiv = document.createElement('div');
+  typDiv.className='msg agent'; typDiv.id='typing';
+  typDiv.innerHTML=`<div class="msg-av">🤖</div><div class="typing"><span></span><span></span><span></span></div>`;
+  el.appendChild(typDiv); scrollBottom();
+
+  try {
+    const sys = buildPrompt();
+    let turns;
+
+    if (isWelcome) {
+      turns=[{role:'user',content:`${sys}\n\n---\nINICIA LA SESIÓN. El estudiante ${S.nombre} (${S.equipo}) con rol "${S.rol}" acaba de entrar al agente. Están en la Etapa ${S.etapaIdx} ("${ETAPAS[S.etapaIdx].nombre}") del Reto, cursando el Módulo ${S.modulo}. Su Socio Formador es Rizes.\n\nDa la bienvenida personalizada mencionando a Rizes y el sector MICE. Explica exactamente qué van a lograr en esta sesión según su rol y etapa. Lanza la primera pregunta o instrucción concreta para comenzar ahora mismo.`}];
+    } else {
+      const base=[
+        {role:'user',content:sys},
+        {role:'assistant',content:'Entendido. Guío al estudiante con el contexto específico de Rizes y su rol.'},
+        ...S.historial.slice(-12),
+      ];
+      if (extra) base.push({role:'user',content:extra});
+      turns=base;
+    }
+
+    let full='';
+    await S.sample(turns,{
+      cache:false, modelTier:'default',
+      onText:({text})=>{
+        full=text;
+        const sm=document.getElementById('sm');
+        if(sm){ sm.querySelector('.msg-b').innerHTML=renderMd(full); }
+        else {
+          typDiv.remove();
+          const d=document.createElement('div');
+          d.className='msg agent'; d.id='sm';
+          d.innerHTML=`<div class="msg-av">🤖</div><div class="msg-b"></div>`;
+          d.querySelector('.msg-b').innerHTML=renderMd(full);
+          el.appendChild(d);
+        }
+        scrollBottom();
+      }
+    });
+
+    const sm=document.getElementById('sm');
+    if(sm) sm.id='';
+    S.historial.push({role:'assistant',content:full});
+
+    // Detectar si necesita score chips
+    const lower=full.toLowerCase();
+    const needsScore=S.etapaIdx===1&&(lower.includes('puntuaci')||lower.includes('puntaj')||lower.includes('califica')||lower.includes('asign')||lower.includes('score'));
+    if(needsScore&&S.dimActual&&!S.scores[S.dimActual]){
+      setTimeout(()=>addScoreCard(S.dimActual),400);
+    }
+
+    setTimeout(()=>addContextChips(full),350);
+
+  } catch(e){
+    document.getElementById('typing')?.remove();
+    document.getElementById('sm')?.remove();
+    const ed=document.createElement('div');
+    ed.className='msg agent';
+    ed.innerHTML=`<div class="msg-av">🤖</div><div class="msg-b" style="color:var(--fog)">${
+      e.code==='not_granted'?'Permiso no otorgado — permite el uso de Claude en este artifact.':
+      e.code==='rate_limited'?'Límite de velocidad — espera un momento e intenta de nuevo.':
+      'Error: '+(e.message||e.code)
+    }</div>`;
+    el.appendChild(ed);
+  } finally {
+    document.getElementById('typing')?.remove();
+    sBtn.disabled=false;
+    scrollBottom();
+  }
+}
+
+// ── SCORE CARD ────────────────────────────────────────────────────
+function addScoreCard(dimId) {
+  const d=DIMS.find(x=>x.id===dimId);
+  const existing=document.getElementById('scorecard-'+dimId);
+  if(existing) return;
+
+  const div=document.createElement('div');
+  div.className='score-card'; div.id='scorecard-'+dimId;
+  div.innerHTML=`
+    <h4>Calificar: ${d.nombre} — Rizes</h4>
+    <p style="font-size:12px;color:var(--fog);margin-bottom:6px;">Asigna un score basado en la evidencia del informante de Rizes (0=inexistente · 100=nivel óptimo)</p>
+    <div class="score-btns" id="sbts-${dimId}">
+      ${[0,20,40,60,80,100].map(v=>`<button class="score-btn" onclick="selectScore('${dimId}',${v},this)">${v}</button>`).join('')}
+    </div>
+    <textarea class="score-note" id="snote-${dimId}" placeholder="Evidencia específica de Rizes que justifica este score (cita lo que dijo el directivo)…"></textarea>
+    <button class="score-save-btn" id="ssave-${dimId}" onclick="confirmScore('${dimId}')" disabled>
+      💾 Guardar en Google Sheets
+    </button>
+  `;
+  document.getElementById('messages').appendChild(div);
+  scrollBottom();
+}
+
+let pendingScore = {};
+function selectScore(dimId, score, btn) {
+  document.querySelectorAll(`#sbts-${dimId} .score-btn`).forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+  pendingScore[dimId] = score;
+  document.getElementById('ssave-'+dimId).disabled = false;
+}
+
+async function confirmScore(dimId) {
+  const score = pendingScore[dimId];
+  if (score === undefined) return;
+  const notas = document.getElementById('snote-'+dimId).value.trim();
+  const btn   = document.getElementById('ssave-'+dimId);
+
+  if (!notas) {
+    const d=DIMS.find(x=>x.id===dimId);
+    const ok=confirm(`⚠️ No registraste evidencia específica de Rizes para "${d.nombre}".\n\nEl profesor verá este campo vacío en el Sheet.\n\n¿Guardar de todas formas?`);
+    if (!ok) return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Guardando…';
+
+  await saveScoreToSheets(dimId, score, notas);
+
+  // Eliminar la card
+  const card = document.getElementById('scorecard-'+dimId);
+  if (card) card.remove();
+
+  // Notificar al agente
+  const d=DIMS.find(x=>x.id===dimId);
+  const msgUser=`Registré ${score}% para la dimensión ${d.nombre} de Rizes. Evidencia: ${notas||'(sin registrar)'}. Ya se guardó en Google Sheets.`;
+  addUserBubble(msgUser);
+  S.historial.push({role:'user',content:msgUser});
+
+  const pending=DIMS.filter(d=>!S.scores[d.id]);
+  const extra=`El estudiante acaba de guardar el score de "${d.nombre}": ${score}% (${getNivel(score).n}). Evidencia registrada: "${notas||'ninguna'}". ${pending.length>0?`Quedan ${pending.length} dimensiones por evaluar. Valida el score brevemente y sugiere la siguiente dimensión (${pending[0].nombre}).`:'¡Todas las dimensiones están evaluadas! Ofrece calcular el Índice Compuesto y generar el resumen ejecutivo de hallazgos para Rizes.'}`;
+  agentReply(extra);
+}
+
+// ── CHIPS CONTEXTUALES ────────────────────────────────────────────
+function addContextChips(agentText) {
+  const chips=[];
+  if(S.etapaIdx===1){
+    chips.push({label:'¿Cómo aplico el instrumento a Rizes?',act:'instrumento'});
+    DIMS.filter(d=>!S.scores[d.id]).slice(0,2).forEach(d=>{
+      chips.push({label:`Evaluar: ${d.nombre}`,act:`dim_${d.id}`});
+    });
+    if(Object.keys(S.scores).length>=8)
+      chips.push({label:'Generar resumen ejecutivo para Rizes',act:'resumen',gold:true});
+  } else if(S.etapaIdx===0){
+    chips.push({label:'¿Qué oportunidades digitales tiene Rizes?',act:'opps'});
+    chips.push({label:'¿Cómo es el ecosistema MICE en México?',act:'mice'});
+  } else if(S.etapaIdx===2){
+    chips.push({label:'¿Cuáles son los 3 procesos neurálgicos de Rizes?',act:'procesos'});
+    chips.push({label:'¿Cómo diagrama un flujograma?',act:'flujo'});
+  } else if(S.etapaIdx===3){
+    chips.push({label:'¿Qué tecnologías recomiendas para Rizes?',act:'tech'});
+    chips.push({label:'¿Cómo evalúo las 3 propuestas?',act:'propuestas'});
+  } else if(S.etapaIdx===4){
+    chips.push({label:'Estructura del roadmap para Rizes',act:'roadmap'});
+    if(S.rol==='Pitch/Multimedia')
+      chips.push({label:'Estructura presentación 15 min para Rizes',act:'pitch',gold:true});
+  }
+  chips.push({label:'¿Qué debo hacer yo como '+S.rol+'?',act:'mi_rol'});
+
+  if(!chips.length) return;
+  const div=document.createElement('div');
+  div.className='chips';
+  div.innerHTML=chips.map(c=>
+    `<button class="chip ${c.gold?'g':''}" onclick="handleChip('${c.act}')">${c.label}</button>`
+  ).join('');
+  document.getElementById('messages').appendChild(div);
+  scrollBottom();
+}
+
+function handleChip(act){
+  if(act.startsWith('dim_')){
+    askDim(act.replace('dim_',''));
+    return;
+  }
+  const prompts={
+    instrumento:`Dame el protocolo paso a paso para aplicar el instrumento EGADE en una entrevista con un directivo de Rizes. ¿Cómo inicio, cómo sondeo y cómo registro las respuestas?`,
+    resumen:`Genera el resumen ejecutivo del diagnóstico de madurez digital de Rizes con los scores registrados. Incluye: 3 hallazgos críticos, 3 fortalezas y 3 quick wins recomendados.`,
+    opps:`¿Cuáles son las 3 oportunidades digitales más relevantes para Rizes dado su modelo de negocio en el sector MICE?`,
+    mice:`¿Cómo está transformándose digitalmente el sector MICE en México? ¿Qué amenazas y oportunidades enfrenta una empresa como Rizes?`,
+    procesos:`¿Cuáles serían los 3 procesos neurálgicos de Rizes que deberíamos diagnosticar y digitalizar primero? Oriéntame según lo que se sabe del SF.`,
+    flujo:`¿Cómo construyo el flujograma de un proceso de Rizes? Dame el proceso y las herramientas que puedo usar.`,
+    tech:`Según el diagnóstico de Rizes, ¿qué tecnologías del Módulo 5 son más relevantes? ¿IA para propuestas, portal de autoservicio, analítica de eventos?`,
+    propuestas:`¿Cómo evalúo las 3 propuestas de transformación digital para Rizes con la matriz Impacto-Esfuerzo?`,
+    roadmap:`Dame la estructura del roadmap de TD para Rizes por horizontes (0-6, 6-18, 18-36 meses). ¿Qué va en cada horizonte?`,
+    pitch:`Dame la estructura minuto a minuto de la presentación ejecutiva de 15 minutos para la dirección de Rizes.`,
+    mi_rol:`¿Qué debo hacer yo específicamente como ${S.rol} en la Etapa ${S.etapaIdx} con Rizes? Dame instrucciones concretas para lo que puedo hacer ahora mismo.`,
+  };
+  const msg=prompts[act];
+  if(!msg) return;
+  addUserBubble(msg.split('.')[0]+'...');
+  S.historial.push({role:'user',content:msg});
+  agentReply();
+}
+
+// ── MENSAJES ──────────────────────────────────────────────────────
+function addUserBubble(text){
+  const d=document.createElement('div');
+  d.className='msg user';
+  d.innerHTML=`<div class="msg-av">👤</div><div class="msg-b">${esc(text)}</div>`;
+  document.getElementById('messages').appendChild(d);
+  scrollBottom();
+}
+async function sendMessage(){
+  const inp=document.getElementById('user-input');
+  const text=inp.value.trim();
+  if(!text||!S.sample) return;
+  addUserBubble(text);
+  S.historial.push({role:'user',content:text});
+  inp.value=''; inp.style.height='auto';
+  agentReply();
+}
+function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+function scrollBottom(){const el=document.getElementById('messages');if(el)el.scrollTop=el.scrollHeight;}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function renderMd(t){return t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');}
+</script>
+</body>
+</html>
